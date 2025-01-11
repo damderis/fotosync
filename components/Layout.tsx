@@ -17,7 +17,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-gray-100">
       <nav className="w-64 bg-white shadow-md">
         <div className="p-4">
-          <h1 className="text-2xl font-bold text-gray-800">Photo Manager</h1>
+          <h1 className="text-2xl font-bold text-gray-800">FotoSync</h1>
         </div>
         <ul className="space-y-2 p-4">
           <li>
