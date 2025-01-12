@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Instagram, Facebook, Twitter } from 'lucide-react'
+import { useClientBooking } from '@/hooks/useClientBooking'
 
 interface PortfolioData {
   name: string
@@ -32,6 +33,8 @@ interface PortfolioData {
 
 export default function ClientView() {
   const params = useParams()
+  const photographerId = params.id as string
+  const { availableSlots, loading, error, bookSlot } = useClientBooking(photographerId)
   const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string } | null>(null)
@@ -89,39 +92,18 @@ export default function ClientView() {
   }
 
   const handleBookingSubmit = async () => {
-    // Here you would typically send this data to your backend
-    console.log('Booking submitted:', {
-      clientName,
-      clientEmail,
-      clientPhone,
-      selectedService,
-      date: selectedDate,
-      time: selectedSlot?.time
-    })
+    if (!selectedSlot) return
 
-    // Simulate payment process
-    setPaymentStatus('pending')
     try {
-      // In a real application, you would integrate with a payment gateway here
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
-      setPaymentStatus('success')
-      // Close the modal and reset form after successful payment
-      setTimeout(() => {
-        setIsBookingModalOpen(false)
-        setClientName('')
-        setClientEmail('')
-        setClientPhone('')
-        setSelectedService('')
-        setSelectedSlot(null)
-        setPaymentStatus('pending')
-      }, 2000)
-    } catch (error) {
-      setPaymentStatus('failed')
-    }
-  }
+      setPaymentStatus('pending')
+      
+      const bookingId = await bookSlot(selectedSlot.id, {
+        clientName,
+        clientEmail,
+        clientPhone,
+        service: selectedService,
+      })
 
-  const handlePayment = async () => {
-    try {
       // Create payment session with Billplz
       const response = await fetch('/api/create-payment', {
         method: 'POST',
@@ -129,24 +111,20 @@ export default function ClientView() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          bookingId,
           name: clientName,
           email: clientEmail,
           phone: clientPhone,
           amount: portfolioData.sessionPrices[selectedService],
           description: `${selectedService} Session - ${selectedDate?.toDateString()} ${selectedSlot?.time}`,
-          bookingDetails: {
-            service: selectedService,
-            date: selectedDate,
-            time: selectedSlot?.time,
-          }
         }),
-      });
+      })
 
-      const { billplzUrl } = await response.json();
-      window.location.href = billplzUrl; // Redirect to Billplz payment page
+      const { billplzUrl } = await response.json()
+      window.location.href = billplzUrl // Redirect to Billplz payment page
     } catch (error) {
-      console.error('Payment creation failed:', error);
-      setPaymentStatus('failed');
+      console.error('Booking failed:', error)
+      setPaymentStatus('failed')
     }
   }
 
@@ -235,19 +213,32 @@ export default function ClientView() {
                         selected={selectedDate}
                         onSelect={setSelectedDate}
                         className="rounded-md border"
+                        disabled={(date) => {
+                          const dateStr = date.toISOString().split('T')[0]
+                          return !availableSlots.some(slot => slot.date === dateStr)
+                        }}
                       />
                     </div>
                     <div>
                       <h3 className="font-semibold mb-2">Available Slots</h3>
-                      <ul className="space-y-2">
-                        {portfolioData.openSlots
-                          .filter(slot => slot.date.toDateString() === selectedDate?.toDateString())
-                          .map(slot => (
-                            <li key={slot.id}>
-                              <Button variant="outline" onClick={() => handleBookSlot(slot)}>{slot.time}</Button>
-                            </li>
-                          ))}
-                      </ul>
+                      {selectedDate ? (
+                        <ul className="space-y-2">
+                          {availableSlots
+                            .filter(slot => slot.date === selectedDate.toISOString().split('T')[0])
+                            .map(slot => (
+                              <li key={slot.id}>
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => handleBookSlot(slot)}
+                                >
+                                  {slot.time}
+                                </Button>
+                              </li>
+                            ))}
+                        </ul>
+                      ) : (
+                        <div className="text-gray-500">Select a date to see available slots</div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -330,7 +321,7 @@ export default function ClientView() {
             </div>
             {paymentStatus === 'pending' && (
               <Button 
-                onClick={handlePayment}
+                onClick={handleBookingSubmit}
                 disabled={!clientName || !clientEmail || !clientPhone || !selectedService}
                 className="w-full"
               >

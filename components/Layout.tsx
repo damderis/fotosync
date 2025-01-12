@@ -1,4 +1,8 @@
-import Link from 'next/link'
+'use client'
+
+import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import Link from "next/link";
+import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
 
 /**
  * Layout Component
@@ -13,37 +17,34 @@ import Link from 'next/link'
  * @returns {JSX.Element} The rendered layout component
  */
 export default function Layout({ children }: { children: React.ReactNode }) {
+  // Initialize Firebase auth with Clerk
+  useFirebaseAuth();
+
   return (
-    <div className="flex h-screen bg-gray-100">
-      <nav className="w-64 bg-white shadow-md">
-        <div className="p-4">
-          <h1 className="text-2xl font-bold text-gray-800">FotoSync</h1>
+    <>
+      <SignedIn>
+        <div className="min-h-screen">
+          <header className="border-b">
+            <div className="flex h-16 items-center px-4">
+              <Link href="/" className="font-bold">
+                FotoSync
+              </Link>
+              <nav className="ml-auto flex items-center space-x-4">
+                <Link href="/appointments">Appointments</Link>
+                <Link href="/portfolio">Portfolio</Link>
+                <Link href="/folders">Folders</Link>
+                <Link href="/reports">Reports</Link>
+                <UserButton afterSignOutUrl="/sign-in" />
+              </nav>
+            </div>
+          </header>
+          <main className="container mx-auto py-6 px-4">{children}</main>
         </div>
-        <ul className="space-y-2 p-4">
-          <li>
-            <Link href="/appointments" className="block p-2 hover:bg-gray-200 rounded">
-              Appointments
-            </Link>
-          </li>
-          <li>
-            <Link href="/folders" className="block p-2 hover:bg-gray-200 rounded">
-              Folders
-            </Link>
-          </li>
-          <li>
-            <Link href="/reports" className="block p-2 hover:bg-gray-200 rounded">
-              Reports
-            </Link>
-          </li>
-          <li>
-            <Link href="/portfolio" className="block p-2 hover:bg-gray-200 rounded">
-              Portfolio
-            </Link>
-          </li>
-        </ul>
-      </nav>
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
-    </div>
-  )
+      </SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  );
 }
 

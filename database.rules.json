@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "available_slots": {
+      "$slotId": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)"
+      }
+    },
+    "bookings": {
+      "$bookingId": {
+        ".read": "auth != null && (data.child('userId').val() === auth.uid || data.child('clientId').val() === auth.uid)",
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)"
+      }
+    },
+    "payments": {
+      "$paymentId": {
+        ".read": "auth != null && data.child('userId').val() === auth.uid",
+        ".write": "auth != null && (!data.exists() || data.child('userId').val() === auth.uid)"
+      }
+    }
+  }
+} 

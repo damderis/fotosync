@@ -1,155 +1,171 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Layout from '../../components/Layout'
-import { Button } from '@/components/ui/button'
+import { Theme, Box, Card, Button, ScrollArea, Text, Flex } from '@radix-ui/themes'
 import { Calendar } from '@/components/ui/calendar'
-import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { format } from 'date-fns'
-
-interface OpenSlot {
-  id: string
-  date: Date
-  time: string
-}
-
-interface Booking {
-  id: string
-  date: Date
-  time: string
-  clientName: string
-  clientEmail: string
-  clientPhone: string
-  service: string
-}
+import '@radix-ui/themes/styles.css'
+import { useAuth } from '@clerk/nextjs'
+import { useAppointments } from '@/hooks/useAppointments'
+import { CalendarIcon, Clock, X } from 'lucide-react'
 
 export default function Appointments() {
+  const { userId } = useAuth()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [selectedTime, setSelectedTime] = useState('00:00')
-  const [openSlots, setOpenSlots] = useState<OpenSlot[]>([])
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const { openSlots, bookings, loading, error, addSlot, removeSlot } = useAppointments()
 
-  useEffect(() => {
-    // Simulating data fetch
-    setOpenSlots([
-      { id: '1', date: new Date('2023-07-01'), time: '10:00' },
-      { id: '2', date: new Date('2023-07-02'), time: '14:00' },
-    ])
-    setBookings([
-      {
-        id: '1',
-        date: new Date('2023-07-03'),
-        time: '11:00',
-        clientName: 'John Doe',
-        clientEmail: 'john@example.com',
-        clientPhone: '(123) 456-7890',
-        service: 'Wedding'
-      },
-      // Add more mock bookings as needed
-    ])
-  }, [])
-
-  const handleAddSlot = () => {
-    if (selectedDate) {
-      const newSlot: OpenSlot = {
-        id: Date.now().toString(),
-        date: selectedDate,
-        time: selectedTime,
-      }
-      setOpenSlots([...openSlots, newSlot])
+  const handleAddSlot = async () => {
+    console.log("Add Slot button clicked")
+    if (!selectedDate) return
+    try {
+      await addSlot(selectedDate, selectedTime)
+      console.log("Slot added")
+      setSelectedTime('00:00')
+    } catch (error) {
+      console.error('Error adding slot:', error)
     }
   }
 
-  const handleRemoveSlot = (id: string) => {
-    setOpenSlots(openSlots.filter(slot => slot.id !== id))
-  }
+  if (loading) return <div>Loading...</div>
+  if (error) return <div>Error: {error}</div>
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Appointment System</h1>
+      <Theme>
+        <div className="container mx-auto p-6">
+          <div className="grid grid-cols-3 gap-8">
+            {/* Create Slots Card */}
+            <Card>
+              <Box p="5">
+                <Text size="5" weight="bold" mb="1">Create Slots</Text>
+                <Text size="2" color="gray" mb="4">Add new appointment slots</Text>
+                
+                <Flex direction="column" gap="4">
+                  <Box className="bg-gray-100 rounded-lg p-3">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      className="w-full"
+                      disabled={(date) => date < new Date()}
+                    />
+                  </Box>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Time</label>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="time"
+                        value={selectedTime}
+                        onChange={(e) => setSelectedTime(e.target.value)}
+                        className="w-full pl-10 h-10 rounded-md border px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={handleAddSlot} 
+                    disabled={!selectedDate}
+                  >
+                    Add Slot
+                  </Button>
+                </Flex>
+              </Box>
+            </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Create Open Slots</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                className="rounded-md border"
-              />
-            </div>
-            <div>
-              <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">Select Time</label>
-              <Input
-                id="time"
-                type="time"
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <Button onClick={handleAddSlot}>Add Open Slot</Button>
+            {/* Open Slots Card */}
+            <Card>
+              <Box p="5">
+                <Text size="5" weight="bold" mb="1">Available Slots</Text>
+                <Text size="2" color="gray" mb="4">Currently open appointment slots</Text>
+                
+                <ScrollArea>
+                  {openSlots.length === 0 ? (
+                    <Text align="center" color="gray" mt="4">
+                      No open slots yet.
+                    </Text>
+                  ) : (
+                    <div className="space-y-3">
+                      {openSlots.map((slot) => (
+                        <Flex 
+                          key={slot.id} 
+                          justify="between" 
+                          align="center"
+                          p="3"
+                          className="border rounded-lg"
+                        >
+                          <Flex gap="3" align="center">
+                            <CalendarIcon className="h-4 w-4 text-gray-500" />
+                            <div>
+                              <Text weight="medium">
+                                {format(new Date(slot.date), 'MMMM d, yyyy')}
+                              </Text>
+                              <Text size="2" color="gray">
+                                {slot.time}
+                              </Text>
+                            </div>
+                          </Flex>
+                          <Button 
+                            color="red" 
+                            variant="soft"
+                            onClick={() => removeSlot(slot.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </Flex>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </Box>
+            </Card>
+
+            {/* Bookings Card */}
+            <Card>
+              <Box p="5">
+                <Text size="5" weight="bold" mb="1">Bookings</Text>
+                <Text size="2" color="gray" mb="4">Your confirmed bookings</Text>
+                
+                <ScrollArea>
+                  {bookings.length === 0 ? (
+                    <Text align="center" color="gray" mt="4">
+                      No bookings yet.
+                    </Text>
+                  ) : (
+                    <div className="space-y-3">
+                      {bookings.map((booking) => (
+                        <div 
+                          key={booking.id} 
+                          className="p-3 border rounded-lg"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <Text weight="medium">{booking.clientName}</Text>
+                              <Text size="2" color="gray">
+                                {format(new Date(booking.date), 'MMMM d, yyyy')} at {booking.time}
+                              </Text>
+                              <Text size="2" color="gray">{booking.service}</Text>
+                            </div>
+                            <Text size="2" className={`px-2 py-1 rounded ${
+                              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                              booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {booking.status}
+                            </Text>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </Box>
+            </Card>
           </div>
         </div>
-
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Open Slots</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {openSlots.map((slot) => (
-                <TableRow key={slot.id}>
-                  <TableCell>{format(slot.date, 'yyyy-MM-dd')}</TableCell>
-                  <TableCell>{slot.time}</TableCell>
-                  <TableCell>
-                    <Button variant="destructive" size="sm" onClick={() => handleRemoveSlot(slot.id)}>
-                      Remove
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      <div className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">Bookings</h2>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Time</TableHead>
-              <TableHead>Client Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Service</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bookings.map((booking) => (
-              <TableRow key={booking.id}>
-                <TableCell>{format(booking.date, 'yyyy-MM-dd')}</TableCell>
-                <TableCell>{booking.time}</TableCell>
-                <TableCell>{booking.clientName}</TableCell>
-                <TableCell>{booking.clientEmail}</TableCell>
-                <TableCell>{booking.clientPhone}</TableCell>
-                <TableCell>{booking.service}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      </Theme>
     </Layout>
   )
 }
