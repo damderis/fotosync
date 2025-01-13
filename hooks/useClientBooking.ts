@@ -8,7 +8,6 @@ import type { AvailableSlot, Booking } from '@/types/firebase'
 export function useClientBooking(photographerId: string) {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!photographerId) {
@@ -16,91 +15,60 @@ export function useClientBooking(photographerId: string) {
       return
     }
 
-    const slotsRef = ref(db, `available_slots/${photographerId}`)
+    // Subscribe to available slots
+    const slotsRef = ref(db, `availableSlots/${photographerId}`)
     const unsubscribe = onValue(slotsRef, (snapshot) => {
       const slots: AvailableSlot[] = []
       snapshot.forEach((childSnapshot) => {
-        const slot = childSnapshot.val()
-        if (slot.status === 'available') {
-          slots.push({
-            id: childSnapshot.key!,
-            ...slot
-          })
-        }
+        slots.push({
+          id: childSnapshot.key!,
+          ...childSnapshot.val()
+        })
       })
       setAvailableSlots(slots)
-      setLoading(false)
-    }, (error) => {
-      console.error('Error fetching available slots:', error)
-      setError(error.message)
       setLoading(false)
     })
 
     return () => unsubscribe()
   }, [photographerId])
 
-  const bookSlot = async (bookingData: {
-    clientName: string
-    clientEmail: string
-    clientPhone: string
-    service: string
-    date: string
-    startTime: string
-    hours: number
-    totalPrice: number
-  }) => {
+  const bookSlot = async (bookingData: Omit<Booking, 'id'>) => {
     if (!photographerId) return
 
-    try {
-      const newBooking: Omit<Booking, 'id'> = {
-        userId: photographerId,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        ...bookingData
-      }
+    // Create new booking
+    const newBookingRef = push(ref(db, `bookings/${photographerId}`))
+    await set(newBookingRef, {
+      ...bookingData,
+      status: 'confirmed',
+      createdAt: new Date().toISOString()
+    })
 
-      const bookingRef = push(ref(db, `bookings/${photographerId}`))
-      await set(bookingRef, newBooking)
+    // Remove the booked date from available slots
+    const slotToUpdate = availableSlots.find(slot => 
+      slot.dates.includes(bookingData.date.split('T')[0])
+    )
 
-      // Update the slot status
-      const slotToUpdate = availableSlots.find(slot => 
-        slot.dates.includes(bookingData.date.split('T')[0])
+    if (slotToUpdate) {
+      const updatedDates = slotToUpdate.dates.filter(date => 
+        date !== bookingData.date.split('T')[0]
       )
 
-      if (slotToUpdate) {
-        const updatedDates = slotToUpdate.dates.filter(date => 
-          date !== bookingData.date.split('T')[0]
-        )
-
-        if (updatedDates.length === 0) {
-          // If no dates left, update slot status to booked
-          await set(ref(db, `available_slots/${photographerId}/${slotToUpdate.id}`), {
-            ...slotToUpdate,
-            status: 'booked',
-            updatedAt: new Date().toISOString()
-          })
-        } else {
-          // Update remaining dates
-          await set(ref(db, `available_slots/${photographerId}/${slotToUpdate.id}`), {
-            ...slotToUpdate,
-            dates: updatedDates,
-            updatedAt: new Date().toISOString()
-          })
-        }
+      if (updatedDates.length === 0) {
+        // If no dates left, remove the slot
+        await set(ref(db, `availableSlots/${photographerId}/${slotToUpdate.id}`), null)
+      } else {
+        // Update the slot with remaining dates
+        await set(ref(db, `availableSlots/${photographerId}/${slotToUpdate.id}`), {
+          ...slotToUpdate,
+          dates: updatedDates
+        })
       }
-
-      return bookingRef.key
-    } catch (error) {
-      console.error('Error creating booking:', error)
-      throw error
     }
   }
 
   return {
     availableSlots,
     loading,
-    error,
     bookSlot
   }
 } 

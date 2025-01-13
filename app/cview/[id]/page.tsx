@@ -16,12 +16,13 @@ import { useClientBooking } from '@/hooks/useClientBooking'
 import { usePortfolio } from '@/hooks/usePortfolio'
 import { useFolders } from '@/hooks/useFolders'
 import { useAuth } from '@clerk/nextjs'
+import { format } from 'date-fns'
 
 export default function ClientView() {
   const params = useParams()
   const photographerId = params.id as string
   const { portfolio } = usePortfolio(photographerId)
-  const { availableSlots, bookSlot } = useClientBooking(photographerId)
+  const { availableSlots, loading, bookSlot } = useClientBooking(photographerId)
   const { folders, loading: foldersLoading } = useFolders(photographerId)
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -46,13 +47,20 @@ export default function ClientView() {
   }
 
   const handleBookingSubmit = async () => {
-    if (!selectedDate) return
+    if (!selectedDate || !portfolio) return
 
     try {
       await bookSlot({
-        ...bookingForm,
+        photographerId,
+        clientName: bookingForm.clientName,
+        clientEmail: bookingForm.clientEmail,
+        clientPhone: bookingForm.clientPhone,
+        service: bookingForm.service,
         date: selectedDate.toISOString(),
+        startTime: bookingForm.startTime,
+        hours: parseInt(bookingForm.hours),
         totalPrice: calculateTotal(),
+        status: 'confirmed'
       })
       setBookingStep(2)
     } catch (error) {
@@ -65,7 +73,7 @@ export default function ClientView() {
     return `${hour.toString().padStart(2, '0')}:00`
   })
 
-  if (foldersLoading) {
+  if (loading || foldersLoading) {
     return <div>Loading...</div>
   }
 
@@ -90,14 +98,14 @@ export default function ClientView() {
               <CardContent className="pt-6">
                 <Carousel className="w-full">
                   <CarouselContent>
-                    {folders.map((image, index) => (
+                    {folders.map((file, index) => (
                       <CarouselItem key={index} className="basis-1/3">
                         <div className="p-1">
                           <img
-                            src={image.url}
+                            src={file.url}
                             alt={`Portfolio ${index + 1}`}
                             className="w-full aspect-square object-cover rounded-lg cursor-pointer"
-                            onClick={() => setSelectedImage(image.url)}
+                            onClick={() => setSelectedImage(file.url)}
                           />
                         </div>
                       </CarouselItem>
@@ -146,20 +154,26 @@ export default function ClientView() {
                     onSelect={setSelectedDate}
                     className="rounded-md border"
                     disabled={(date) => {
-                      return !availableSlots.some(slot => 
-                        slot.dates.includes(date.toISOString().split('T')[0])
+                      // Disable dates that are not in available slots and past dates
+                      const dateStr = date.toISOString().split('T')[0]
+                      const isAvailable = availableSlots.some(slot => 
+                        slot.dates.includes(dateStr)
                       )
+                      return !isAvailable || date < new Date()
                     }}
                   />
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-4">Selected Date Slots</h3>
+                    <h3 className="font-semibold mb-4">Selected Date</h3>
                     {selectedDate && (
-                      <Button 
-                        onClick={() => handleBookSlot(selectedDate.toISOString())}
-                        className="w-full"
-                      >
-                        Book Now
-                      </Button>
+                      <div className="space-y-4">
+                        <p>{format(selectedDate, 'MMMM d, yyyy')}</p>
+                        <Button 
+                          onClick={() => setIsBookingModalOpen(true)}
+                          className="w-full"
+                        >
+                          Book Now
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
