@@ -1,34 +1,42 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Layout from '../../components/Layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Folder, File, Upload, Link, Trash2 } from 'lucide-react'
-
-interface FolderType {
-  id: number
-  name: string
-  files: FileType[]
-}
-
-interface FileType {
-  id: number
-  name: string
-  type: 'image' | 'video'
-  url: string
-}
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Folder, File, Upload, Share2, ArrowUp, Trash2 } from 'lucide-react'
+import { useFolders } from '@/hooks/useFolders'
+import type { Folder as FolderType } from '@/types/firebase'
+import { useDropzone } from 'react-dropzone'
 
 export default function Folders() {
-  const [folders, setFolders] = useState<FolderType[]>([])
+  const { folders, createFolder, uploadFile, getFolderShareLink } = useFolders()
   const [newFolderName, setNewFolderName] = useState('')
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles[0]) {
+      setFileToUpload(acceptedFiles[0])
+      const objectUrl = URL.createObjectURL(acceptedFiles[0])
+      setPreviewUrl(objectUrl)
+    }
+  }, [])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif']
+    },
+    multiple: false
+  })
 
   const handleCreateFolder = () => {
     if (newFolderName) {
-      setFolders([...folders, { id: Date.now(), name: newFolderName, files: [] }])
+      createFolder(newFolderName)
       setNewFolderName('')
     }
   }
@@ -38,22 +46,22 @@ export default function Folders() {
     setIsModalOpen(true)
   }
 
-  const handleShareLink = () => {
-    if (selectedFolder) {
-      // In a real application, you would generate a unique sharing link here
-      const sharingLink = `https://yourdomain.com/share/${selectedFolder.id}`
-      alert(`Sharing link for ${selectedFolder.name}: ${sharingLink}`)
+  const handleUploadFile = async () => {
+    if (selectedFolder && fileToUpload) {
+      try {
+        await uploadFile(selectedFolder.id, fileToUpload)
+        setFileToUpload(null)
+        setPreviewUrl(null)
+      } catch (error) {
+        console.error('Error uploading file:', error)
+      }
     }
   }
 
-  const handleDeleteFolder = (id: number) => {
-    setFolders(folders.filter(folder => folder.id !== id))
-    setIsModalOpen(false)
-  }
-
-  const handleUploadFile = () => {
-    // In a real application, you would implement file upload functionality here
-    alert('File upload functionality would be implemented here')
+  const handleShare = (folderId: string) => {
+    const link = getFolderShareLink(folderId)
+    navigator.clipboard.writeText(link)
+    alert('Share link copied to clipboard!')
   }
 
   return (
@@ -96,35 +104,71 @@ export default function Folders() {
           <DialogHeader>
             <DialogTitle>{selectedFolder?.name}</DialogTitle>
           </DialogHeader>
-          <div className="flex justify-between items-center mb-4">
-            <Button onClick={handleUploadFile} className="flex items-center">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload File
-            </Button>
-            <Button onClick={handleShareLink} className="flex items-center">
-              <Link className="w-4 h-4 mr-2" />
-              Share Folder
-            </Button>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto">
-            {selectedFolder && selectedFolder.files.length > 0 ? (
-              selectedFolder.files.map(file => (
-                <div key={file.id} className="flex items-center justify-between py-2 border-b">
-                  <div className="flex items-center">
-                    {file.type === 'image' ? (
-                      <File className="w-5 h-5 mr-2 text-green-500" />
-                    ) : (
-                      <File className="w-5 h-5 mr-2 text-blue-500" />
-                    )}
-                    <span className="text-sm">{file.name}</span>
-                  </div>
-                  <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                    View
-                  </a>
-                </div>
-              ))
+          
+          <div 
+            {...getRootProps()} 
+            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+              ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+          >
+            <input {...getInputProps()} />
+            {previewUrl ? (
+              <div className="space-y-4">
+                <img src={previewUrl} alt="Preview" className="max-h-40 mx-auto" />
+                <p className="text-sm text-gray-500">{fileToUpload?.name}</p>
+              </div>
             ) : (
-              <div className="text-center text-gray-500 py-8">No files uploaded</div>
+              <div className="space-y-2">
+                <Upload className="w-8 h-8 mx-auto text-gray-400" />
+                <p>Drag & drop an image here, or click to select</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-between items-center mt-4">
+            <Button
+              onClick={() => handleShare(selectedFolder?.id || '')}
+              className="flex items-center gap-2"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </Button>
+            {fileToUpload && (
+              <Button onClick={handleUploadFile} className="flex items-center gap-2">
+                <ArrowUp className="w-4 h-4" />
+                Confirm Upload
+              </Button>
+            )}
+          </div>
+
+          <div className="max-h-[300px] overflow-y-auto mt-4">
+            {selectedFolder?.files?.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4">
+                {selectedFolder.files.map((file) => (
+                  <div key={file.id} className="relative group">
+                    <img 
+                      src={file.url} 
+                      alt={file.name}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <a 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-white hover:underline"
+                        >
+                          View
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                No files uploaded
+              </div>
             )}
           </div>
         </DialogContent>

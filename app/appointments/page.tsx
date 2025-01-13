@@ -2,170 +2,218 @@
 
 import { useState } from 'react'
 import Layout from '../../components/Layout'
-import { Theme, Box, Card, Button, ScrollArea, Text, Flex } from '@radix-ui/themes'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
-import { format } from 'date-fns'
-import '@radix-ui/themes/styles.css'
-import { useAuth } from '@clerk/nextjs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { MoreHorizontal } from 'lucide-react'
+import { format, addDays } from 'date-fns'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useAppointments } from '@/hooks/useAppointments'
-import { CalendarIcon, Clock, X } from 'lucide-react'
+import type { Booking } from '@/types/firebase'
 
 export default function Appointments() {
-  const { userId } = useAuth()
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
-  const [selectedTime, setSelectedTime] = useState('00:00')
-  const { openSlots, bookings, loading, error, addSlot, removeSlot } = useAppointments()
+  const { availableSlots, bookings, createSlot, removeSlot, cancelBooking } = useAppointments()
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
 
-  const handleAddSlot = async () => {
-    console.log("Add Slot button clicked")
+  const handleCreateSlot = async () => {
     if (!selectedDate) return
+    
     try {
-      await addSlot(selectedDate, selectedTime)
-      console.log("Slot added")
-      setSelectedTime('00:00')
+      // Add one day to fix the date offset issue
+      const adjustedDate = addDays(selectedDate, 1)
+      await createSlot([adjustedDate.toISOString().split('T')[0]])
+      setSelectedDate(undefined)
     } catch (error) {
-      console.error('Error adding slot:', error)
+      console.error('Error creating slot:', error)
     }
   }
 
-  if (loading) return <div>Loading...</div>
-  if (error) return <div>Error: {error}</div>
+  const handleViewBooking = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setIsViewModalOpen(true)
+  }
 
   return (
     <Layout>
-      <Theme>
-        <div className="container mx-auto p-6">
-          <div className="grid grid-cols-3 gap-8">
-            {/* Create Slots Card */}
-            <Card>
-              <Box p="5">
-                <Text size="5" weight="bold" mb="1">Create Slots</Text>
-                <Text size="2" color="gray" mb="4">Add new appointment slots</Text>
-                
-                <Flex direction="column" gap="4">
-                  <Box className="bg-gray-100 rounded-lg p-3">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      className="w-full"
-                      disabled={(date) => date < new Date()}
-                    />
-                  </Box>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Time</label>
-                    <div className="relative">
-                      <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="time"
-                        value={selectedTime}
-                        onChange={(e) => setSelectedTime(e.target.value)}
-                        className="w-full pl-10 h-10 rounded-md border px-3 py-2 text-sm"
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleAddSlot} 
-                    disabled={!selectedDate}
-                  >
-                    Add Slot
-                  </Button>
-                </Flex>
-              </Box>
-            </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Create Slot Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Available Slot</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                className="rounded-md border"
+                disabled={(date) => date < new Date()}
+              />
+              {selectedDate && (
+                <div>
+                  <h3 className="font-medium mb-2">Selected Date:</h3>
+                  <p>{format(selectedDate, 'MMMM d, yyyy')}</p>
+                </div>
+              )}
+              <Button 
+                onClick={handleCreateSlot}
+                disabled={!selectedDate}
+                className="w-full"
+              >
+                Create Slot
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Open Slots Card */}
-            <Card>
-              <Box p="5">
-                <Text size="5" weight="bold" mb="1">Available Slots</Text>
-                <Text size="2" color="gray" mb="4">Currently open appointment slots</Text>
-                
-                <ScrollArea>
-                  {openSlots.length === 0 ? (
-                    <Text align="center" color="gray" mt="4">
-                      No open slots yet.
-                    </Text>
-                  ) : (
-                    <div className="space-y-3">
-                      {openSlots.map((slot) => (
-                        <Flex 
-                          key={slot.id} 
-                          justify="between" 
-                          align="center"
-                          p="3"
-                          className="border rounded-lg"
-                        >
-                          <Flex gap="3" align="center">
-                            <CalendarIcon className="h-4 w-4 text-gray-500" />
-                            <div>
-                              <Text weight="medium">
-                                {format(new Date(slot.date), 'MMMM d, yyyy')}
-                              </Text>
-                              <Text size="2" color="gray">
-                                {slot.time}
-                              </Text>
-                            </div>
-                          </Flex>
-                          <Button 
-                            color="red" 
-                            variant="soft"
+        {/* Available Slots Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Available Slots</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {availableSlots.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">No available slots</p>
+            ) : (
+              <div className="space-y-4">
+                {availableSlots.map((slot) => (
+                  <div 
+                    key={slot.id}
+                    className="p-4 border rounded-lg"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        {slot.dates.map((date) => (
+                          <p key={date} className="mb-1">
+                            {format(new Date(date), 'MMMM d, yyyy')}
+                          </p>
+                        ))}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            className="text-red-600"
                             onClick={() => removeSlot(slot.id)}
                           >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </Flex>
-                      ))}
+                            Remove Slot
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  )}
-                </ScrollArea>
-              </Box>
-            </Card>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-            {/* Bookings Card */}
-            <Card>
-              <Box p="5">
-                <Text size="5" weight="bold" mb="1">Bookings</Text>
-                <Text size="2" color="gray" mb="4">Your confirmed bookings</Text>
-                
-                <ScrollArea>
-                  {bookings.length === 0 ? (
-                    <Text align="center" color="gray" mt="4">
-                      No bookings yet.
-                    </Text>
-                  ) : (
-                    <div className="space-y-3">
-                      {bookings.map((booking) => (
-                        <div 
-                          key={booking.id} 
-                          className="p-3 border rounded-lg"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <Text weight="medium">{booking.clientName}</Text>
-                              <Text size="2" color="gray">
-                                {format(new Date(booking.date), 'MMMM d, yyyy')} at {booking.time}
-                              </Text>
-                              <Text size="2" color="gray">{booking.service}</Text>
-                            </div>
-                            <Text size="2" className={`px-2 py-1 rounded ${
-                              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                              booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {booking.status}
-                            </Text>
-                          </div>
-                        </div>
-                      ))}
+        {/* Bookings Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {bookings.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">No bookings yet</p>
+            ) : (
+              <div className="space-y-4">
+                {bookings.map((booking) => (
+                  <div 
+                    key={booking.id}
+                    className="flex justify-between items-center p-4 border rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">{booking.clientName}</p>
+                      <p className="text-sm text-gray-500">{booking.service}</p>
                     </div>
-                  )}
-                </ScrollArea>
-              </Box>
-            </Card>
-          </div>
-        </div>
-      </Theme>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewBooking(booking)}>
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-red-600"
+                          onClick={() => cancelBooking(booking.id)}
+                        >
+                          Cancel Booking
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* View Booking Details Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Booking Details</DialogTitle>
+          </DialogHeader>
+          {selectedBooking && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Client Name</p>
+                  <p className="font-medium">{selectedBooking.clientName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Service</p>
+                  <p className="font-medium">{selectedBooking.service}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Email</p>
+                  <p className="font-medium">{selectedBooking.clientEmail}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Phone</p>
+                  <p className="font-medium">{selectedBooking.clientPhone}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-medium">
+                    {format(new Date(selectedBooking.date), 'MMMM d, yyyy')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Start Time</p>
+                  <p className="font-medium">{selectedBooking.startTime}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Duration</p>
+                  <p className="font-medium">{selectedBooking.hours} hours</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Price</p>
+                  <p className="font-medium">MYR {selectedBooking.totalPrice.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   )
 }

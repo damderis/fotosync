@@ -1,110 +1,99 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  ref, 
-  query, 
-  orderByChild, 
-  equalTo, 
-  onValue, 
-  push,
-  get,
-  serverTimestamp,
-  update
-} from 'firebase/database'
+import { ref, onValue, push, set } from 'firebase/database'
 import { db } from '@/utils/firebase'
-import type { OpenSlot, Booking } from '@/types/firebase'
+import type { AvailableSlot, Booking } from '@/types/firebase'
 
 export function useClientBooking(photographerId: string) {
-  const [availableSlots, setAvailableSlots] = useState<OpenSlot[]>([])
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch available slots for this photographer
   useEffect(() => {
-    const slotsRef = ref(db, 'available_slots')
-    const slotsQuery = query(
-      slotsRef, 
-      orderByChild('userId'), 
-      equalTo(photographerId)
-    )
+    if (!photographerId) {
+      setLoading(false)
+      return
+    }
 
-    const unsubscribe = onValue(slotsQuery, 
-      (snapshot) => {
-        const slots: OpenSlot[] = []
-        const now = new Date()
-
-        snapshot.forEach((childSnapshot) => {
-          const slot = childSnapshot.val()
-          const slotDate = new Date(`${slot.date}T${slot.time}`)
-          
-          // Only include future slots that are available
-          if (slotDate > now && slot.status === 'available') {
-            slots.push({
-              id: childSnapshot.key,
-              ...slot
-            })
-          }
-        })
-
-        setAvailableSlots(slots.sort((a, b) => {
-          const dateA = new Date(`${a.date}T${a.time}`)
-          const dateB = new Date(`${b.date}T${b.time}`)
-          return dateA.getTime() - dateB.getTime()
-        }))
-        setLoading(false)
-      },
-      (error) => {
-        console.error('Error fetching available slots:', error)
-        setError(error.message)
-        setLoading(false)
-      }
-    )
+    const slotsRef = ref(db, `available_slots/${photographerId}`)
+    const unsubscribe = onValue(slotsRef, (snapshot) => {
+      const slots: AvailableSlot[] = []
+      snapshot.forEach((childSnapshot) => {
+        const slot = childSnapshot.val()
+        if (slot.status === 'available') {
+          slots.push({
+            id: childSnapshot.key!,
+            ...slot
+          })
+        }
+      })
+      setAvailableSlots(slots)
+      setLoading(false)
+    }, (error) => {
+      console.error('Error fetching available slots:', error)
+      setError(error.message)
+      setLoading(false)
+    })
 
     return () => unsubscribe()
   }, [photographerId])
 
-  const bookSlot = async (
-    slotId: string, 
-    bookingData: {
-      clientName: string
-      clientEmail: string
-      clientPhone: string
-      service: string
-      clientId?: string
-    }
-  ) => {
-    try {
-      // Get the slot data
-      const slotRef = ref(db, `available_slots/${slotId}`)
-      const slotSnapshot = await get(slotRef)
-      const slotData = slotSnapshot.val()
+  const bookSlot = async (bookingData: {
+    clientName: string
+    clientEmail: string
+    clientPhone: string
+    service: string
+    date: string
+    startTime: string
+    hours: number
+    totalPrice: number
+  }) => {
+    if (!photographerId) return
 
-      if (!slotData || slotData.status !== 'available') {
-        throw new Error('Slot is no longer available')
+    try {
+      const newBooking: Omit<Booking, 'id'> = {
+        userId: photographerId,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...bookingData
       }
 
-      // Create booking
-      const bookingsRef = ref(db, 'bookings')
-      const newBooking = await push(bookingsRef, {
-        slotId,
-        userId: photographerId,
-        date: slotData.date,
-        time: slotData.time,
-        status: 'pending',
-        createdAt: serverTimestamp(),
-        ...bookingData
-      })
+      const bookingRef = push(ref(db, `bookings/${photographerId}`))
+      await set(bookingRef, newBooking)
 
-      // Update slot status
-      await update(slotRef, {
-        status: 'booked'
-      })
+      // Update the slot status
+      const slotToUpdate = availableSlots.find(slot => 
+        slot.dates.includes(bookingData.date.split('T')[0])
+      )
 
-      return newBooking.key
-    } catch (err) {
-      console.error('Error booking slot:', err)
-      throw err
+      if (slotToUpdate) {
+        const updatedDates = slotToUpdate.dates.filter(date => 
+          date !== bookingData.date.split('T')[0]
+        )
+
+        if (updatedDates.length === 0) {
+          // If no dates left, update slot status to booked
+          await set(ref(db, `available_slots/${photographerId}/${slotToUpdate.id}`), {
+            ...slotToUpdate,
+            status: 'booked',
+            updatedAt: new Date().toISOString()
+          })
+        } else {
+          // Update remaining dates
+          await set(ref(db, `available_slots/${photographerId}/${slotToUpdate.id}`), {
+            ...slotToUpdate,
+            dates: updatedDates,
+            updatedAt: new Date().toISOString()
+          })
+        }
+      }
+
+      return bookingRef.key
+    } catch (error) {
+      console.error('Error creating booking:', error)
+      throw error
     }
   }
 

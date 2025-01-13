@@ -1,343 +1,290 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar } from '@/components/ui/calendar'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Instagram, Facebook, Twitter } from 'lucide-react'
 import { useClientBooking } from '@/hooks/useClientBooking'
-
-interface PortfolioData {
-  name: string
-  services: string[]
-  bio: string
-  email: string
-  phone: string
-  socialMedia: {
-    instagram: string
-    facebook: string
-    twitter: string
-  }
-  portfolioItems: { id: number; type: 'image' | 'video'; url: string }[]
-  folders: { id: number; name: string; files: { id: number; name: string; url: string }[] }[]
-  openSlots: { id: string; date: Date; time: string }[]
-  sessionPrices: {[key: string]: number}
-}
+import { usePortfolio } from '@/hooks/usePortfolio'
+import { useFolders } from '@/hooks/useFolders'
+import { useAuth } from '@clerk/nextjs'
 
 export default function ClientView() {
   const params = useParams()
   const photographerId = params.id as string
-  const { availableSlots, loading, error, bookSlot } = useClientBooking(photographerId)
-  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null)
+  const { portfolio } = usePortfolio(photographerId)
+  const { availableSlots, bookSlot } = useClientBooking(photographerId)
+  const { folders, loading: foldersLoading } = useFolders(photographerId)
+  
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
-  const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string } | null>(null)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
-  const [clientName, setClientName] = useState('')
-  const [clientEmail, setClientEmail] = useState('')
-  const [clientPhone, setClientPhone] = useState('')
-  const [selectedService, setSelectedService] = useState('')
-  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | 'failed'>('pending')
+  const [bookingStep, setBookingStep] = useState(1) // 1: Form, 2: Success
+  const [bookingForm, setBookingForm] = useState({
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
+    service: '',
+    hours: '1',
+    startTime: '09:00'
+  })
 
-  useEffect(() => {
-    // In a real application, fetch the portfolio data based on the ID
-    // For now, we'll use mock data
-    const mockData: PortfolioData = {
-      name: "Jane Doe Photography",
-      services: ["Wedding", "Portrait", "Event", "Commercial"],
-      bio: "Passionate photographer with over 10 years of experience capturing life's most precious moments.",
-      email: "contact@janedoephotography.com",
-      phone: "(123) 456-7890",
-      socialMedia: {
-        instagram: "https://instagram.com/janedoephoto",
-        facebook: "https://facebook.com/janedoephoto",
-        twitter: "https://twitter.com/janedoephoto"
-      },
-      portfolioItems: [
-        { id: 1, type: 'image', url: '/placeholder.svg' },
-        { id: 2, type: 'image', url: '/placeholder.svg' },
-        { id: 3, type: 'image', url: '/placeholder.svg' },
-      ],
-      folders: [
-        { id: 1, name: 'Wedding 2023', files: [{ id: 1, name: 'photo1.jpg', url: '/placeholder.svg' }] },
-        { id: 2, name: 'Portrait Session', files: [{ id: 2, name: 'photo2.jpg', url: '/placeholder.svg' }] },
-      ],
-      openSlots: [
-        { id: '1', date: new Date('2023-07-01'), time: '10:00' },
-        { id: '2', date: new Date('2023-07-02'), time: '14:00' },
-      ],
-      sessionPrices: {
-        "Wedding": 2500,
-        "Portrait": 500,
-        "Event": 1000,
-        "Commercial": 1500
-      }
-    }
-    setPortfolioData(mockData)
-  }, [params.id])
-
-  if (!portfolioData) {
-    return <div>Loading...</div>
-  }
-
-  const handleBookSlot = (slot: { id: string; time: string }) => {
-    setSelectedSlot(slot)
+  const handleBookSlot = (date: string) => {
     setIsBookingModalOpen(true)
   }
 
+  const calculateTotal = () => {
+    return portfolio?.pricePerHour ? portfolio.pricePerHour * parseInt(bookingForm.hours) : 0
+  }
+
   const handleBookingSubmit = async () => {
-    if (!selectedSlot) return
+    if (!selectedDate) return
 
     try {
-      setPaymentStatus('pending')
-      
-      const bookingId = await bookSlot(selectedSlot.id, {
-        clientName,
-        clientEmail,
-        clientPhone,
-        service: selectedService,
+      await bookSlot({
+        ...bookingForm,
+        date: selectedDate.toISOString(),
+        totalPrice: calculateTotal(),
       })
-
-      // Create payment session with Billplz
-      const response = await fetch('/api/create-payment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          bookingId,
-          name: clientName,
-          email: clientEmail,
-          phone: clientPhone,
-          amount: portfolioData.sessionPrices[selectedService],
-          description: `${selectedService} Session - ${selectedDate?.toDateString()} ${selectedSlot?.time}`,
-        }),
-      })
-
-      const { billplzUrl } = await response.json()
-      window.location.href = billplzUrl // Redirect to Billplz payment page
+      setBookingStep(2)
     } catch (error) {
       console.error('Booking failed:', error)
-      setPaymentStatus('failed')
     }
+  }
+
+  const timeSlots = Array.from({ length: 12 }, (_, i) => {
+    const hour = 9 + i
+    return `${hour.toString().padStart(2, '0')}:00`
+  })
+
+  if (foldersLoading) {
+    return <div>Loading...</div>
   }
 
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">{portfolioData.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{portfolio?.name}</h1>
         </div>
       </header>
+
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <Tabs defaultValue="portfolio" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-              <TabsTrigger value="about">About</TabsTrigger>
-              <TabsTrigger value="booking">Booking</TabsTrigger>
-              <TabsTrigger value="contact">Contact</TabsTrigger>
-            </TabsList>
-            <TabsContent value="portfolio">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Portfolio Highlights</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Carousel className="w-full max-w-xs mx-auto">
-                    <CarouselContent>
-                      {portfolioData.portfolioItems.map(item => (
-                        <CarouselItem key={item.id}>
-                          {item.type === 'image' ? (
-                            <img src={item.url} alt="Portfolio item" className="w-full h-60 object-cover rounded" />
-                          ) : (
-                            <video src={item.url} className="w-full h-60 object-cover rounded" controls />
-                          )}
-                        </CarouselItem>
-                      ))}
-                    </CarouselContent>
-                    <CarouselPrevious />
-                    <CarouselNext />
-                  </Carousel>
-                </CardContent>
-              </Card>
-              <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {portfolioData.folders.map(folder => (
-                  <Card key={folder.id}>
-                    <CardHeader>
-                      <CardTitle>{folder.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-3 gap-2">
-                        {folder.files.map(file => (
-                          <img key={file.id} src={file.url} alt={file.name} className="w-full h-20 object-cover rounded" />
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-            <TabsContent value="about">
-              <Card>
-                <CardHeader>
-                  <CardTitle>About Me</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700">{portfolioData.bio}</p>
-                  <h3 className="font-semibold mt-4 mb-2">Services</h3>
-                  <ul className="list-disc list-inside">
-                    {portfolioData.services.map((service, index) => (
-                      <li key={index}>{service}</li>
+        <Tabs defaultValue="portfolio" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+            <TabsTrigger value="about">About</TabsTrigger>
+            <TabsTrigger value="booking">Booking</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="portfolio">
+            <Card>
+              <CardContent className="pt-6">
+                <Carousel className="w-full">
+                  <CarouselContent>
+                    {folders.map((image, index) => (
+                      <CarouselItem key={index} className="basis-1/3">
+                        <div className="p-1">
+                          <img
+                            src={image.url}
+                            alt={`Portfolio ${index + 1}`}
+                            className="w-full aspect-square object-cover rounded-lg cursor-pointer"
+                            onClick={() => setSelectedImage(image.url)}
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious />
+                  <CarouselNext />
+                </Carousel>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="about">
+            <Card>
+              <CardHeader>
+                <CardTitle>About Me</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose max-w-none">
+                  <p className="text-gray-700">{portfolio?.bio}</p>
+                </div>
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-2">Services</h3>
+                  <ul className="space-y-2">
+                    {portfolio?.services.map((service, index) => (
+                      <li key={index} className="flex items-center space-x-2">
+                        <span>{service}</span>
+                      </li>
                     ))}
                   </ul>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="booking">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Book a Session</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row gap-6">
-                    <div>
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        className="rounded-md border"
-                        disabled={(date) => {
-                          const dateStr = date.toISOString().split('T')[0]
-                          return !availableSlots.some(slot => slot.date === dateStr)
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Available Slots</h3>
-                      {selectedDate ? (
-                        <ul className="space-y-2">
-                          {availableSlots
-                            .filter(slot => slot.date === selectedDate.toISOString().split('T')[0])
-                            .map(slot => (
-                              <li key={slot.id}>
-                                <Button 
-                                  variant="outline" 
-                                  onClick={() => handleBookSlot(slot)}
-                                >
-                                  {slot.time}
-                                </Button>
-                              </li>
-                            ))}
-                        </ul>
-                      ) : (
-                        <div className="text-gray-500">Select a date to see available slots</div>
-                      )}
-                    </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="booking">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Dates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    className="rounded-md border"
+                    disabled={(date) => {
+                      return !availableSlots.some(slot => 
+                        slot.dates.includes(date.toISOString().split('T')[0])
+                      )
+                    }}
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold mb-4">Selected Date Slots</h3>
+                    {selectedDate && (
+                      <Button 
+                        onClick={() => handleBookSlot(selectedDate.toISOString())}
+                        className="w-full"
+                      >
+                        Book Now
+                      </Button>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="contact">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Contact Me</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="mb-4">Get in touch for inquiries or to book a session!</p>
-                  <div className="space-y-2">
-                    <p>Email: {portfolioData.email}</p>
-                    <p>Phone: {portfolioData.phone}</p>
-                  </div>
-                  <div className="mt-4 flex space-x-4">
-                    <a href={portfolioData.socialMedia.instagram} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                      <Instagram />
-                    </a>
-                    <a href={portfolioData.socialMedia.facebook} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                      <Facebook />
-                    </a>
-                    <a href={portfolioData.socialMedia.twitter} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                      <Twitter />
-                    </a>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
+      {/* Image Preview Modal */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <img src={selectedImage || ''} alt="Preview" className="w-full h-auto" />
+        </DialogContent>
+      </Dialog>
+
+      {/* Booking Modal */}
       <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Book Your Session</DialogTitle>
+            <DialogTitle>
+              {bookingStep === 1 ? 'Book Your Session' : 'Booking Successful!'}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="clientName">Name</Label>
-              <Input id="clientName" value={clientName} onChange={(e) => setClientName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="clientEmail">Email</Label>
-              <Input id="clientEmail" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="clientPhone">Phone</Label>
-              <Input id="clientPhone" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="service">Service</Label>
-              <Select value={selectedService} onValueChange={setSelectedService}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a service" />
-                </SelectTrigger>
-                <SelectContent>
-                  {portfolioData.services.map((service) => (
-                    <SelectItem key={service} value={service}>{service}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <p>Selected Date: {selectedDate?.toDateString()}</p>
-              <p>Selected Time: {selectedSlot?.time}</p>
-            </div>
-            <div className="mt-4 p-4 bg-gray-50 rounded-md">
-              <h3 className="font-semibold mb-2">Booking Summary</h3>
-              <p>Date: {selectedDate?.toDateString()}</p>
-              <p>Time: {selectedSlot?.time}</p>
-              <p>Service: {selectedService}</p>
-              {selectedService && (
-                <p className="text-lg font-bold mt-2">
-                  Price: MYR {portfolioData.sessionPrices[selectedService].toFixed(2)}
-                </p>
-              )}
-            </div>
-            {paymentStatus === 'pending' && (
-              <Button 
-                onClick={handleBookingSubmit}
-                disabled={!clientName || !clientEmail || !clientPhone || !selectedService}
-                className="w-full"
-              >
+
+          {bookingStep === 1 ? (
+            <div className="space-y-4">
+              <div>
+                <Label>Name</Label>
+                <Input
+                  value={bookingForm.clientName}
+                  onChange={(e) => setBookingForm({...bookingForm, clientName: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={bookingForm.clientEmail}
+                  onChange={(e) => setBookingForm({...bookingForm, clientEmail: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <Input
+                  value={bookingForm.clientPhone}
+                  onChange={(e) => setBookingForm({...bookingForm, clientPhone: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Service</Label>
+                <Select
+                  value={bookingForm.service}
+                  onValueChange={(value) => setBookingForm({...bookingForm, service: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {portfolio?.services.map((service) => (
+                      <SelectItem key={service} value={service}>
+                        {service}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Session Hours</Label>
+                <Select
+                  value={bookingForm.hours}
+                  onValueChange={(value) => setBookingForm({...bookingForm, hours: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select hours" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1,2,3,4,5,6].map((hour) => (
+                      <SelectItem key={hour} value={hour.toString()}>
+                        {hour} hour{hour > 1 ? 's' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Start Time</Label>
+                <Select
+                  value={bookingForm.startTime}
+                  onValueChange={(value) => setBookingForm({...bookingForm, startTime: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select start time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeSlots.map((time) => (
+                      <SelectItem key={time} value={time}>
+                        {time}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                <h3 className="font-semibold mb-2">Booking Summary</h3>
+                <p>Date: {selectedDate?.toLocaleDateString()}</p>
+                <p>Total Price: MYR {calculateTotal().toFixed(2)}</p>
+              </div>
+              <Button onClick={handleBookingSubmit} className="w-full">
                 Proceed to Payment
               </Button>
-            )}
-            {paymentStatus === 'success' && (
-              <div className="text-green-600">Payment successful! Your booking is confirmed.</div>
-            )}
-            {paymentStatus === 'failed' && (
-              <div className="text-red-600">Payment failed. Please try again.</div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-green-600 mb-4">Payment successful! Your booking is confirmed.</p>
+              <Button onClick={() => {
+                setIsBookingModalOpen(false)
+                setBookingStep(1)
+              }}>
+                Close
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
   )
 }
-

@@ -1,5 +1,5 @@
 import { adminDb } from './firebase-admin';
-import type { User, Portfolio, Folder, File, AvailableSlot, SessionPrice, Booking } from '@/types/firebase';
+import type { User, Portfolio, Folder, File, AvailableSlot, Booking } from '@/types/firebase';
 
 export const Collections = {
   users: adminDb.collection('users'),
@@ -7,7 +7,6 @@ export const Collections = {
   folders: adminDb.collection('folders'),
   files: adminDb.collection('files'),
   availableSlots: adminDb.collection('available_slots'),
-  sessionPrices: adminDb.collection('session_prices'),
   bookings: adminDb.collection('bookings'),
 } as const;
 
