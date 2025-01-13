@@ -15,7 +15,7 @@ import { Instagram, Facebook, Twitter } from 'lucide-react'
 import { useClientBooking } from '@/hooks/useClientBooking'
 import { usePortfolio } from '@/hooks/usePortfolio'
 import { useFolders } from '@/hooks/useFolders'
-import { useAuth } from '@clerk/nextjs'
+import { Folder } from '@/types/firebase'
 import { format } from 'date-fns'
 
 export default function ClientView() {
@@ -23,10 +23,11 @@ export default function ClientView() {
   const photographerId = params.id as string
   const { portfolio } = usePortfolio(photographerId)
   const { availableSlots, loading, bookSlot } = useClientBooking(photographerId)
-  const { folders, loading: foldersLoading } = useFolders(photographerId)
+  const { loading: foldersLoading, getAllImages } = useFolders(photographerId)
   
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [bookingStep, setBookingStep] = useState(1) // 1: Form, 2: Success
   const [bookingForm, setBookingForm] = useState({
@@ -37,11 +38,6 @@ export default function ClientView() {
     hours: '1',
     startTime: '09:00'
   })
-
-  const handleBookSlot = (date: string) => {
-    setIsBookingModalOpen(true)
-  }
-
   const calculateTotal = () => {
     return portfolio?.pricePerHour ? portfolio.pricePerHour * parseInt(bookingForm.hours) : 0
   }
@@ -73,6 +69,9 @@ export default function ClientView() {
     return `${hour.toString().padStart(2, '0')}:00`
   })
 
+  // Get all portfolio images
+  const portfolioImages = getAllImages()
+
   if (loading || foldersLoading) {
     return <div>Loading...</div>
   }
@@ -94,29 +93,29 @@ export default function ClientView() {
           </TabsList>
 
           <TabsContent value="portfolio">
-            <Card>
-              <CardContent className="pt-6">
-                <Carousel className="w-full">
-                  <CarouselContent>
-                    {folders.map((file, index) => (
-                      <CarouselItem key={index} className="basis-1/3">
-                        <div className="p-1">
-                          <img
-                            src={file.url}
-                            alt={`Portfolio ${index + 1}`}
-                            className="w-full aspect-square object-cover rounded-lg cursor-pointer"
-                            onClick={() => setSelectedImage(file.url)}
-                          />
-                        </div>
-                      </CarouselItem>
-                    ))}
-                  </CarouselContent>
-                  <CarouselPrevious />
-                  <CarouselNext />
-                </Carousel>
-              </CardContent>
-            </Card>
-          </TabsContent>
+  <Card>
+    <CardContent className="pt-6">
+      {portfolioImages.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          No portfolio images available
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {portfolioImages.map((image) => (
+            <div key={image.id} className="p-1">
+              <img
+                src={image.url}
+                alt={image.name}
+                className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setSelectedImage(image.url)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+</TabsContent>
 
           <TabsContent value="about">
             <Card>
@@ -186,7 +185,13 @@ export default function ClientView() {
       {/* Image Preview Modal */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-w-4xl">
-          <img src={selectedImage || ''} alt="Preview" className="w-full h-auto" />
+          <div className="relative">
+            <img 
+              src={selectedImage || ''} 
+              alt="Preview" 
+              className="w-full h-auto rounded-lg"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
