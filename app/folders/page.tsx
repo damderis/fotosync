@@ -66,8 +66,8 @@ export default function Folders() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Client Folders</h1>
-      <div className="mb-6">
+      <div className="px-8 py-1">
+        <h1 className="text-3xl font-bold mb-6">Client Folders</h1>
         <div className="flex space-x-2">
           <Input
             value={newFolderName}
@@ -78,7 +78,7 @@ export default function Folders() {
           <Button onClick={handleCreateFolder}>Create Folder</Button>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 px-8 py-1 mt-4">
         {folders.map(folder => (
           <div
             key={folder.id}

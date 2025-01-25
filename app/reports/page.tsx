@@ -37,7 +37,7 @@ export default function Reports() {
 
   return (
     <Layout>
-      <div className="p-6">
+      <div className="px-8 py-1">
         <h1 className="text-3xl font-bold mb-6">Sales Reports</h1>
         <div className="mb-6">
           <Select onValueChange={setYear} defaultValue={year}>
@@ -88,7 +88,13 @@ export default function Reports() {
           {/* Monthly Sales Chart */}
           <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle>Monthly Sales</CardTitle>
+              <CardTitle className='flex justify-between items-center'>Monthly Sales
+              <Button 
+                onClick={() => setActiveModal('monthly')}
+              >
+                View Details
+              </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
               <div className="flex-1 min-h-[300px]">
@@ -102,19 +108,19 @@ export default function Reports() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <Button 
-                className="mt-4 w-full" 
-                onClick={() => setActiveModal('monthly')}
-              >
-                View Details
-              </Button>
             </CardContent>
           </Card>
 
           {/* Services Breakdown Chart */}
           <Card className="flex flex-col">
             <CardHeader>
-              <CardTitle>Services Breakdown</CardTitle>
+              <CardTitle className='flex justify-between items-center'>Services Breakdown
+              <Button 
+                onClick={() => setActiveModal('services')}
+              >
+                View Details
+              </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col">
               <div className="flex-1 min-h-[300px]">
@@ -138,12 +144,7 @@ export default function Reports() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <Button 
-                className="mt-4 w-full" 
-                onClick={() => setActiveModal('services')}
-              >
-                View Details
-              </Button>
+              
             </CardContent>
           </Card>
         </div>

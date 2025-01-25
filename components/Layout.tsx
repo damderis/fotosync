@@ -1,8 +1,9 @@
 'use client'
 
-import { UserButton, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useFirebaseAuth } from "@/hooks/useFirebaseAuth";
+import Navigation from './Navigation';
 
 /**
  * Layout Component
@@ -24,21 +25,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <>
       <SignedIn>
         <div className="min-h-screen">
-          <header className="border-b">
-            <div className="flex h-16 items-center px-4">
-              <Link href="/" className="font-bold">
+          <header className="border-b bg-white">
+            <div className="flex h-16 items-center px-4 max-w-7xl mx-auto">
+              <Link href="/dashboard" className="font-bold text-xl">
                 FotoSync
               </Link>
-              <nav className="ml-auto flex items-center space-x-4">
-                <Link href="/appointments">Appointments</Link>
-                <Link href="/portfolio">Portfolio</Link>
-                <Link href="/folders">Folders</Link>
-                <Link href="/reports">Reports</Link>
-                <UserButton afterSignOutUrl="/sign-in" />
-              </nav>
+              <Navigation />
             </div>
           </header>
-          <main className="container mx-auto py-6 px-4">{children}</main>
+          <main className="max-w-7xl mx-auto py-6 px-4">{children}</main>
         </div>
       </SignedIn>
       <SignedOut>

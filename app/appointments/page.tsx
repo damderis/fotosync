@@ -43,60 +43,104 @@ export default function Appointments() {
 
   return (
     <Layout>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Create Slot Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Available Slot</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                className="rounded-md border"
-                disabled={(date) => date < new Date()}
-              />
-              {selectedDate && (
-                <div>
-                  <h3 className="font-medium mb-2">Selected Date:</h3>
-                  <p>{format(selectedDate, 'MMMM d, yyyy')}</p>
+      <div className="px-8 py-1">
+        <h1 className="text-3xl font-bold mb-6">Appointments</h1>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Create Slot Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Create Available Slot</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  className="rounded-md border"
+                  disabled={(date) => date < new Date()}
+                />
+                {selectedDate && (
+                  <div>
+                    <h3 className="font-medium mb-2">Selected Date:</h3>
+                    <p>{format(selectedDate, 'MMMM d, yyyy')}</p>
+                  </div>
+                )}
+                <Button 
+                  onClick={handleCreateSlot}
+                  disabled={!selectedDate}
+                  className="w-full"
+                >
+                  Create Slot
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Available Slots Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Slots</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {availableSlots.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No available slots</p>
+              ) : (
+                <div className="space-y-4">
+                  {availableSlots.map((slot) => (
+                    <div 
+                      key={slot.id}
+                      className="p-4 border rounded-lg"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          {slot.dates.map((date) => (
+                            <p key={date} className="mb-1">
+                              {format(new Date(date), 'MMMM d, yyyy')}
+                            </p>
+                          ))}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => removeSlot(slot.id)}
+                            >
+                              Remove Slot
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              <Button 
-                onClick={handleCreateSlot}
-                disabled={!selectedDate}
-                className="w-full"
-              >
-                Create Slot
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Available Slots Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Available Slots</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {availableSlots.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">No available slots</p>
-            ) : (
-              <div className="space-y-4">
-                {availableSlots.map((slot) => (
-                  <div 
-                    key={slot.id}
-                    className="p-4 border rounded-lg"
-                  >
-                    <div className="flex justify-between items-start">
+          {/* Bookings Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Bookings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {bookings.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">No bookings yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.map((booking) => (
+                    <div 
+                      key={booking.id}
+                      className="flex justify-between items-center p-4 border rounded-lg"
+                    >
                       <div>
-                        {slot.dates.map((date) => (
-                          <p key={date} className="mb-1">
-                            {format(new Date(date), 'MMMM d, yyyy')}
-                          </p>
-                        ))}
+                        <p className="font-medium">{booking.clientName}</p>
+                        <p className="text-sm text-gray-500">{booking.service}</p>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -105,65 +149,24 @@ export default function Appointments() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewBooking(booking)}>
+                            View Details
+                          </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-red-600"
-                            onClick={() => removeSlot(slot.id)}
+                            onClick={() => cancelBooking(booking.id)}
                           >
-                            Remove Slot
+                            Cancel Booking
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Bookings Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Bookings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {bookings.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">No bookings yet</p>
-            ) : (
-              <div className="space-y-4">
-                {bookings.map((booking) => (
-                  <div 
-                    key={booking.id}
-                    className="flex justify-between items-center p-4 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{booking.clientName}</p>
-                      <p className="text-sm text-gray-500">{booking.service}</p>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewBooking(booking)}>
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => cancelBooking(booking.id)}
-                        >
-                          Cancel Booking
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* View Booking Details Modal */}
