@@ -2,7 +2,7 @@ import { Webhook } from 'svix'
 import { headers } from 'next/headers'
 import { WebhookEvent } from '@clerk/nextjs/server'
 import { adminDb, adminAuth } from '@/utils/firebase-admin'
-import type { User, Portfolio, SessionPrice } from '@/types/firebase'
+import type { User, Portfolio } from '@/types/firebase'
 
 export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
@@ -92,22 +92,6 @@ export async function POST(req: Request) {
       };
       batch.set(portfolioRef, portfolioData);
 
-      // 3. Create default session prices
-      const defaultServices = ['Wedding', 'Portrait', 'Event', 'Commercial'];
-      const defaultPrices = [2500, 500, 1000, 1500];
-
-      defaultServices.forEach((service, index) => {
-        const priceRef = adminDb.collection('session_prices').doc();
-        const priceData: SessionPrice = {
-          id: priceRef.id,
-          userId: id,
-          service,
-          price: defaultPrices[index],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        batch.set(priceRef, priceData);
-      });
 
       // 4. Create default folders
       const defaultFolders = ['Wedding Photos', 'Portrait Sessions', 'Events'];

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Layout from '../../components/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { MoreHorizontal } from 'lucide-react'
-import { format, addDays } from 'date-fns'
+import { MoreHorizontal, CheckCircle } from 'lucide-react'
+import { format, addDays, isBefore, startOfDay } from 'date-fns'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,20 +16,40 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAppointments } from '@/hooks/useAppointments'
 import type { Booking } from '@/types/firebase'
+import { Badge } from '@/components/ui/badge'
 
 export default function Appointments() {
-  const { availableSlots, bookings, createSlot, removeSlot, cancelBooking } = useAppointments()
+  const { 
+    availableSlots, 
+    bookings, 
+    createSlot, 
+    removeSlot, 
+    cancelBooking,
+    completeBooking,
+    cleanupPastSlots 
+  } = useAppointments()
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [isViewModalOpen, setIsViewModalOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+
+  // Cleanup past slots on component mount
+  useEffect(() => {
+    cleanupPastSlots()
+  }, [])
+
+  // Group bookings by status
+  const groupedBookings = bookings.reduce((acc, booking) => {
+    const status = booking.status || 'upcoming'
+    if (!acc[status]) acc[status] = []
+    acc[status].push(booking)
+    return acc
+  }, {} as Record<string, typeof bookings>)
 
   const handleCreateSlot = async () => {
     if (!selectedDate) return
     
     try {
-      // Add one day to fix the date offset issue
-      const adjustedDate = addDays(selectedDate, 1)
-      await createSlot([adjustedDate.toISOString().split('T')[0]])
+      await createSlot([format(selectedDate, 'yyyy-MM-dd')])
       setSelectedDate(undefined)
     } catch (error) {
       console.error('Error creating slot:', error)
@@ -45,7 +65,7 @@ export default function Appointments() {
     <Layout>
       <div className="px-8 py-1">
         <h1 className="text-3xl font-bold mb-6">Appointments</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Create Slot Card */}
           <Card>
             <CardHeader>
@@ -122,48 +142,70 @@ export default function Appointments() {
               )}
             </CardContent>
           </Card>
-
+          </div>
+          <div className='flex flex-col mt-6'>
           {/* Bookings Card */}
           <Card>
             <CardHeader>
               <CardTitle>Bookings</CardTitle>
             </CardHeader>
             <CardContent>
-              {bookings.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">No bookings yet</p>
-              ) : (
-                <div className="space-y-4">
-                  {bookings.map((booking) => (
-                    <div 
-                      key={booking.id}
-                      className="flex justify-between items-center p-4 border rounded-lg"
-                    >
-                      <div>
-                        <p className="font-medium">{booking.clientName}</p>
-                        <p className="text-sm text-gray-500">{booking.service}</p>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewBooking(booking)}>
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={() => cancelBooking(booking.id)}
-                          >
-                            Cancel Booking
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-3 gap-6">
+                {['upcoming', 'completed', 'cancelled'].map((status) => (
+                  <Card key={status}>
+                    <CardHeader>
+                      <CardTitle className="capitalize">{status} Appointments</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {groupedBookings[status]?.length > 0 ? (
+                        <div className="space-y-4">
+                          {groupedBookings[status].map((booking) => (
+                            <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
+                              <div className="space-y-1">
+                                <p className="font-medium">{booking.clientName}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {format(new Date(booking.date), 'MMM dd, yyyy')} • 
+                                  {booking.startTime} - {booking.endTime}
+                                </p>
+                                <Badge>{booking.service}</Badge>
+                              </div>
+                              
+                              {status === 'upcoming' && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    <DropdownMenuItem onClick={() => handleViewBooking(booking)}>
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => completeBooking(booking.id)}>
+                                      <CheckCircle className="w-4 h-4 mr-2" />
+                                      Mark as Completed
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => cancelBooking(booking.id)}
+                                      className="text-destructive"
+                                    >
+                                      Cancel Booking
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No {status} appointments
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -206,7 +248,7 @@ export default function Appointments() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-medium">{selectedBooking.hours} hours</p>
+                  <p className="font-medium">{selectedBooking.duration} hours</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Price</p>
