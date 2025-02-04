@@ -11,7 +11,7 @@ import type { Folder as FolderType } from '@/types/firebase'
 import { useDropzone } from 'react-dropzone'
 
 export default function Folders() {
-  const { folders, createFolder, uploadFile, getFolderShareLink } = useFolders()
+  const { folders, createFolder, uploadFile, getFolderShareLink, deleteFolder } = useFolders()
   const [newFolderName, setNewFolderName] = useState('')
   const [selectedFolder, setSelectedFolder] = useState<FolderType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -85,13 +85,13 @@ export default function Folders() {
             className="bg-white p-4 rounded-lg shadow cursor-pointer hover:shadow-md transition-shadow relative"
             onClick={() => handleOpenFolder(folder)}
           >
-            <Folder className="w-16 h-16 text-blue-500 mx-auto mb-2" />
+            <Folder className="w-16 h-16 text-primary mx-auto mb-2" />
             <p className="text-center text-sm font-medium truncate">{folder.name}</p>
             <button
               className="absolute top-2 right-2 text-red-500 hover:text-red-700"
               onClick={(e) => {
                 e.stopPropagation()
-                handleDeleteFolder(folder.id)
+                deleteFolder(folder.id)
               }}
             >
               <Trash2 className="w-5 h-5" />

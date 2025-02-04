@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,7 +15,7 @@ import { useClientBooking } from '@/hooks/useClientBooking'
 import { usePortfolio } from '@/hooks/usePortfolio'
 import { useFolders } from '@/hooks/useFolders'
 import { format } from 'date-fns'
-
+import { Instagram } from 'lucide-react'
 export default function ClientView() {
   const params = useParams()
   const photographerId = params.id as string
@@ -95,14 +96,31 @@ export default function ClientView() {
                 </div>
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold mb-2">Services</h3>
-                  <ul className="space-y-2">
+                  <ul className="flex flex-wrap gap-2">
                     {portfolio.services.map((service, index) => (
-                      <li key={index} className="flex items-center space-x-2">
-                        <span>{service}</span>
+                      <li key={index}>
+                        <Badge className='p-2 text-sm'>{service}</Badge>
                       </li>
                     ))}
                   </ul>
                 </div>
+                {portfolio?.instagramUrl && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold mb-2">Social Media</h3>
+                    <ul className="space-y-2">
+                      <li>
+                        <a 
+                          href={portfolio.instagramUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-pink-600 hover:text-pink-700"
+                        >
+                          <Instagram size={24} />
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -113,7 +131,7 @@ export default function ClientView() {
                 <CardTitle>Book a Session</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col sm:flex-row gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2  gap-6">
                   <Calendar
                     mode="single"
                     selected={selectedDate}

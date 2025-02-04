@@ -25,7 +25,7 @@ const servicesData = [
   { name: 'Commercial', value: 200 },
 ]
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
+const COLORS = ['#7e6645', '#6e583c', '#5f4a34', '#a38b5f']
 
 export default function Reports() {
   const [year, setYear] = useState('2023')
@@ -59,8 +59,8 @@ export default function Reports() {
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">RM {totalRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">For the year {year}</p>
+              <div className="text-2xl font-bold text-primary">RM {totalRevenue.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground text-black">For the year {year}</p>
             </CardContent>
           </Card>
           <Card>
@@ -68,8 +68,8 @@ export default function Reports() {
               <CardTitle className="text-sm font-medium">Most Booked Month</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mostBookedMonth.month}</div>
-              <p className="text-xs text-muted-foreground">RM {mostBookedMonth.sales.toLocaleString()} in sales</p>
+              <div className="text-2xl font-bold text-primary">{mostBookedMonth.month}</div>
+              <p className="text-xs text-muted-foreground text-black">RM {mostBookedMonth.sales.toLocaleString()} in sales</p>
             </CardContent>
           </Card>
           <Card>
@@ -77,8 +77,8 @@ export default function Reports() {
               <CardTitle className="text-sm font-medium">Most Booked Service</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mostBookedService.name}</div>
-              <p className="text-xs text-muted-foreground">{mostBookedService.value} bookings</p>
+              <div className="text-2xl font-bold text-primary">{mostBookedService.name}</div>
+              <p className="text-xs text-muted-foreground text-black">{mostBookedService.value} bookings</p>
             </CardContent>
           </Card>
         </div>
@@ -104,7 +104,7 @@ export default function Reports() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="sales" fill="#8884d8" />
+                    <Bar dataKey="sales" fill="#8f754f" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

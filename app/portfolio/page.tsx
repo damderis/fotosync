@@ -95,16 +95,25 @@ export default function Portfolio() {
   return (
     <Layout>
       <div className="px-8 py-1">
+        <div className='flex justify-between'>
         <h1 className="text-3xl font-bold mb-6">Portfolio Management</h1>
+        {isEditing ? (
+                    <Button onClick={handleSave}>Save Changes</Button>
+                  ) : (
+                    <Button onClick={() => setIsEditing(true)}>Edit</Button>
+                  )}
+        </div>
+        
+        
         <Tabs defaultValue="content" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="content">Content</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="content">Photographer Details</TabsTrigger>
+            <TabsTrigger value="settings">Social / Contacts</TabsTrigger>
           </TabsList>
           <TabsContent value="content">
             <Card>
               <CardHeader>
-                <CardTitle>Portfolio Content</CardTitle>
+                <CardTitle>Portfolio Details</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -146,11 +155,7 @@ export default function Portfolio() {
                       disabled={!isEditing}
                     />
                   </div>
-                  {isEditing ? (
-                    <Button onClick={handleSave}>Save Changes</Button>
-                  ) : (
-                    <Button onClick={() => setIsEditing(true)}>Edit</Button>
-                  )}
+                  
                 </div>
               </CardContent>
             </Card>
@@ -200,30 +205,6 @@ export default function Portfolio() {
                       onChange={(e) => setFormData({
                         ...formData,
                         socialMedia: { ...formData.socialMedia, instagram: e.target.value }
-                      })}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="facebook">Facebook</Label>
-                    <Input
-                      id="facebook"
-                      value={formData.socialMedia.facebook}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        socialMedia: { ...formData.socialMedia, facebook: e.target.value }
-                      })}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="twitter">Twitter</Label>
-                    <Input
-                      id="twitter"
-                      value={formData.socialMedia.twitter}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        socialMedia: { ...formData.socialMedia, twitter: e.target.value }
                       })}
                       disabled={!isEditing}
                     />
